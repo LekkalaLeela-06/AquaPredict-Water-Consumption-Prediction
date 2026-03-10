@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AquaPredict Dashboard</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background:#0B1F3A;
+            color:white;
+        }
+        .card            background:#1B2E4F;
+            border:none;
+        }
+        h1 {
+            color:#00B4D8;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+<div class="container">
+
+    <h1 class="mb-4">AquaPredict Dashboard</h1>
+
+    <!-- Data Input -->
+    <div class="card p-3 mb-4">
+        <h4>Add Daily Water Usage</h4>
+        <div class="row">
+            <div class="col-md-4">
+                <input type="date" id="date" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <input type="number" id="liters" placeholder="Liters Used" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <button onclick="addData()" class="btn btn-info w-100">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="row text-center mb-4">
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h5>Total Usage</h5>
+                <h3 id="total"></h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h5>Average Usage</h5>
+                <h3 id="average"></h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h5>Max Usage</h5>
+                <h3 id="max"></h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <h5>Min Usage</h5>
+                <h3 id="min"></h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row">
+        <div class="col-md-6">
+            <canvas id="usageChart"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="predictionChart"></canvas>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <canvas id="barChart"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Alert -->
+    <div id="alertBox" class="alert alert-danger mt-4 d-none">
+        ⚠ Water usage increasing rapidly! Risk of shortage.
+    </div>
+
+</div>
+
+<script>
+
+async function addData() {
+    const date = document.getElementById("date").value;
+    const liters = document.getElementById("liters").value;
+
+    await fetch("/add_usage", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({date:date, liters:parseInt(liters)})
+    });
+
+    loadData();
+}
+
+async function loadData() {
+
+    const response = await fetch("/get_usage");
+    const data = await response.json();
+
+    const dates = data.map(row => row[0]);
+    const liters = data.map(row => row[1]);
+
+    if(liters.length > 1 && liters[liters.length-1] > liters[liters.length-2]) {
+        document.getElementById("alertBox").classList.remove("d-none");
+    }
+
+    new Chart(document.getElementById("usageChart"), {
+        type:"line",
+        data:{
+            labels:dates,
+            datasets:[{label:"Water Usage", data:liters, borderColor:"#00B4D8"}]
+        }
+    });
+
+    new Chart(document.getElementById("barChart"), {
+        type:"bar",
+        data:{
+            labels:dates,
+            datasets:[{label:"Daily Usage", data:liters, backgroundColor:"#0077B6"}]
+        }
+    });
+
+    new Chart(document.getElementById("pieChart"), {
+        type:"pie",
+        data:{
+            labels:dates,
+            datasets:[{data:liters}]
+        }
+    });
+
+    const predResponse = await fetch("/predict");
+    const predictions = await predResponse.json();
+
+    new Chart(document.getElementById("predictionChart"), {
+        type:"line",
+        data:{
+            labels:["Day1","Day2","Day3","Day4","Day5","Day6","Day7"],
+            datasets:[{label:"Prediction", data:predictions, borderColor:"yellow"}]
+        }
+    });
+
+    const analysisResponse = await fetch("/analysis");
+    const stats = await analysisResponse.json();
+
+    document.getElementById("total").innerText = stats.total_usage || 0;
+    document.getElementById("average").innerText = stats.average_usage || 0;
+    document.getElementById("max").innerText = stats.max_usage || 0;
+    document.getElementById("min").innerText = stats.min_usage || 0;
+}
+
+loadData();
+
+</script>
+
+</body>
+</html>
